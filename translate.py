@@ -5,9 +5,11 @@ import sys
 BLANK = 0
 ACCEPT_STATE = "accept"
 REJECT_STATE = "reject"
+START_STATE = "start"
 R = "R"
 L = "L"
 S = "S"
+DIRS = (R, L, S)
 
 
 def read_two_tape_transitions(path):
@@ -35,8 +37,8 @@ def read_two_tape_transitions(path):
             except ValueError:
                 print("Error: Invalid letter in transition! Tape alphabet is natural numbers.")
                 sys.exit()
-            assert dir1 in ("L", "R", "S")
-            assert dir2 in ("L", "R", "S")
+            assert dir1 in DIRS
+            assert dir2 in DIRS
             if (cur_state, cur_let1, cur_let2) not in transitions:
                 transitions[(cur_state, cur_let1, cur_let2)] = []
             transitions[(cur_state, cur_let1, cur_let2)].append((target_state, out_let1, out_let2, dir1, dir2))
@@ -73,35 +75,105 @@ def translate_transitions_to_one_tape(TT_transitions):
     Returns:
         [transition]: List of single tape Turing Machine transitions.
     """
-    # Step 1.
     alphabet = get_alphabet(TT_transitions)
+    states = get_states(TT_transitions)
     max_val = max(alphabet) + 1  # Used for underlining
     underlined_alphabet = set(max_val + let for let in alphabet)
     double_underlined_alphabet = set(2*max_val + let for let in alphabet)
     SEPARATOR = 4 * max_val  # Separating the first and the second tape
     OT_transitions = []
 
-    ################################################ INITIALIZATION ################################################
-    OT_transitions.append(("start", let, "initializeFirstTape", underline(let, max_val), R) for let in alphabet)
-    OT_transitions.append(("initializeFirstTape", let, "initializeFirstTape", let, R) for let in alphabet if let != BLANK)
-    OT_transitions.append(("initializeFirstTape", BLANK, "initializeSecondTapeBlank", SEPARATOR, R))
-    OT_transitions.append(("initializeSecondTapeBlank", BLANK, "initializeSecondTapeSeparator", BLANK, R))
-    OT_transitions.append(("initializeSecondTapeSeparator", BLANK, "goBackToFirstHead", SEPARATOR, L))
-    OT_transitions.append(("goBackToFirstHeadOnSecondTape", let, "goBackToFirstHeadOnSecondTape", let, L) for let in alphabet | double_underlined_alphabet)
-    OT_transitions.append(("goBackToFirstHeadOnSecondTape", SEPARATOR, "goBackToFirstHeadOnFirstTape", SEPARATOR, L))
-    OT_transitions.append(("goBackToFirstHeadOnFirstTape", let, "goBackToFirstHeadOnFirstTape", let, L) for let in alphabet)
-    OT_transitions.append(("goBackToFirstHeadOnFirstTape", let, f"ReadLet2|let1:{un_underline(let)}", let, R) for let in underlined_alphabet)
+    ################################################ 1.INITIALIZATION ################################################
+    OT_transitions += [(START_STATE, let, state("initializeFirstTape"), underline(let, max_val), R)
+                        for let in alphabet]
+    OT_transitions += [(state("initializeFirstTape"), let, state("initializeFirstTape"), let, R)
+                          for let in alphabet - {BLANK}]
+    OT_transitions += [(state("initializeFirstTape"), BLANK, state("initializeSecondTapeBlank"), SEPARATOR, R)]
+    OT_transitions += [(state("initializeSecondTapeBlank"), BLANK, state("initializeSecondTapeSeparator"), double_underline(BLANK, max_val), R)]
+    OT_transitions += [(state("initializeSecondTapeSeparator"), BLANK, state("goBackToFirstHeadOnSecondTape", org_state=START_STATE), SEPARATOR, L)]
+    OT_transitions += [(state("goBackToFirstHeadOnSecondTape", org_state=org_state), let, state("goBackToFirstHeadOnSecondTape", org_state=org_state), let, L)
+                          for let in alphabet | double_underlined_alphabet
+                          for org_state in states]
+    OT_transitions += [(state("goBackToFirstHeadOnSecondTape", org_state=org_state), SEPARATOR, state("goBackToFirstHeadOnFirstTape", org_state=org_state), SEPARATOR, L)
+                          for org_state in states]
+    OT_transitions += [(state("goBackToFirstHeadOnFirstTape", org_state=org_state), let, state("goBackToFirstHeadOnFirstTape", org_state=org_state), let, L)
+                          for let in alphabet
+                          for org_state in states]
+    OT_transitions += [(state("goBackToFirstHeadOnFirstTape", org_state=org_state), u_let, state("ReadLet2", org_state=org_state, let1=un_underline(u_let, max_val)), u_let, R)
+                          for u_let in underlined_alphabet
+                          for org_state in states]
     ################################################ EXECUTE FIRST HEAD ACTION ################################################
-    OT_transitions.append((f"ReadLet2|let1:{let1}", let, f"ReadLet2|let1:{let1}", let, R) for let in alphabet | {SEPARATOR}
-                                                                                          for let1 in alphabet)
-    OT_transitions.append((f"ReadLet2|let1:{let1}", let2, f"executeSecondHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let2, S) for let1 in alphabet
-                                                                                                                                                   for let2 in double_underlined_alphabet)
-    OT_transitions.append((f"executeSecondHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let2, f"executeFirstHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", un_double_underline(let2), L) for let1 in alphabet
-                                                                                                                                                   for let2 in double_underlined_alphabet)
-    OT_transitions.append((f"executeSecondHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let, f"executeFirstHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let, L) for let1 in alphabet
-                                                                                                                                                                                                        for let2 in double_underlined_alphabet)
-    OT_transitions.append((f"executeFirstHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let1, f"executeFirstHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let, L) for let1 in alphabet
-                                                                                                                                                                                                        for let2 in double_underlined_alphabet)
+    OT_transitions += [(state("ReadLet2", org_state=org_state, let1=let1), let, state("ReadLet2", org_state=org_state, let1=let1), let, R)
+                          for let in alphabet | {SEPARATOR}
+                          for let1 in alphabet
+                          for org_state in states]
+    for org_state in states:
+        for let1 in alphabet:
+            for let2 in alphabet:
+                for (target_state, tlet1, tlet2, dir1, dir2) in TT_transitions.get((org_state, let1, let2), []):
+                    OT_transitions += [(state("ReadLet2", org_state=org_state, let1=let1), double_underline(let2, max_val), state("executeSecondHeadAction", org_state=target_state, tlet1=tlet1, tlet2=tlet2, dir1=dir1, dir2=dir2), double_underline(let2, max_val), S)]   
+    OT_transitions += [(state("executeSecondHeadAction", org_state=org_state, tlet1=tlet1, tlet2=tlet2, dir1=dir1, dir2=R), double_underline(let2, max_val), state("executeSecondHeadActionRightCheckIfExceedsTape", org_state=org_state, tlet1=tlet1, dir1=dir1), tlet2, R)
+                          for tlet1 in alphabet
+                          for tlet2 in alphabet
+                          for let2 in alphabet
+                          for dir1 in DIRS
+                          for org_state in states]
+    OT_transitions += [(state("executeSecondHeadActionRightCheckIfExceedsTape", org_state=org_state, tlet1=tlet1, dir1=dir1), let, state("goToFirstHead", org_state=org_state, tlet1=tlet1, dir1=dir1), double_underline(let2, max_val), R)
+                          for tlet1 in alphabet
+                          for let in alphabet
+                          for dir1 in DIRS
+                          for org_state in states]
+    OT_transitions += [(state("executeSecondHeadActionRightCheckIfExceedsTape", org_state=org_state, tlet1=tlet1, dir1=dir1), SEPARATOR, state("executeSecondHeadActionRightTapeExceededWriteNewSeparator", org_state=org_state, tlet1=tlet1, dir1=dir1), double_underline(BLANK, max_val), R)
+                        for tlet1 in alphabet
+                        for dir1 in DIRS
+                        for org_state in states]
+    OT_transitions += [(state("executeSecondHeadActionRightTapeExceededWriteNewSeparator", org_state=org_state, tlet1=tlet1, dir1=dir1), BLANK, state("goToFirstHead", org_state=org_state, tlet1=tlet1, dir1=dir1), SEPARATOR, L)
+                    for tlet1 in alphabet
+                    for dir1 in DIRS
+                    for org_state in states]
+    OT_transitions += [(state("executeSecondHeadAction", org_state=org_state, tlet1=tlet1, tlet2=tlet2, dir1=dir1, dir2=S), let2, state("goToFirstHead", org_state=org_state, tlet1=tlet1, dir1=dir1), double_underline(tlet2, max_val), L)
+                          for tlet1 in alphabet
+                          for tlet2 in alphabet
+                          for let2 in double_underlined_alphabet
+                          for dir1 in DIRS
+                          for org_state in states]
+    OT_transitions += [(state("executeSecondHeadAction", org_state=org_state, tlet1=tlet1, tlet2=tlet2, dir1=dir1, dir2=L), let2, state("executeSecondHeadActionLeftCheckIfExceedsTape", org_state=org_state, tlet1=tlet1, dir1=dir1), un_double_underline(tlet2, max_val), L)
+                        for tlet1 in alphabet
+                        for tlet2 in alphabet
+                        for let2 in double_underlined_alphabet
+                        for dir1 in DIRS
+                        for org_state in states]
+    OT_transitions += [(state("executeSecondHeadActionLeftCheckIfExceedsTape", org_state=org_state, tlet1=tlet1, dir1=dir1), let, state("goToFirstHead", org_state=org_state, tlet1=tlet1, dir1=dir1), double_underline(let, max_val), L)
+                        for tlet1 in alphabet
+                        for let in alphabet
+                        for dir1 in DIRS
+                        for org_state in states]
+    OT_transitions += [(state("executeSecondHeadActionLeftCheckIfExceedsTape", org_state=org_state, tlet1=tlet1, dir1=dir1), SEPARATOR, state("executeSecondHeadActionLeftTapeExceededWriteDoubleUnderline", org_state=org_state, tlet1=tlet1, dir1=dir1), SEPARATOR, R)
+                        for tlet1 in alphabet
+                        for dir1 in DIRS
+                        for org_state in states]
+    OT_transitions += [(state("executeSecondHeadActionLeftTapeExceededWriteDoubleUnderline", org_state=org_state, tlet1=tlet1, dir1=dir1), let, state("goToFirstHead", org_state=org_state, tlet1=tlet1, dir1=dir1), double_underline(let, max_val), L)
+                        for tlet1 in alphabet
+                        for dir1 in DIRS
+                        for let in alphabet
+                        for org_state in states]
+    OT_transitions += [(state("goToFirstHead", org_state=org_state, tlet1=tlet1, dir1=dir1), let, state("goToFirstHead", org_state=org_state, tlet1=tlet1, dir1=dir1), let, L)
+                    for tlet1 in alphabet
+                    for dir1 in DIRS
+                    for let in alphabet | double_underlined_alphabet | {SEPARATOR}
+                    for org_state in states]
+    OT_transitions += [(state("goToFirstHead", org_state=org_state, tlet1=tlet1, dir1=dir1), let1, state("executeFirstHeadAction", org_state=org_state, tlet1=tlet1, dir1=dir1), let1, S)
+                    for tlet1 in alphabet
+                    for dir1 in DIRS
+                    for let1 in underlined_alphabet
+                    for org_state in states]
+    # TODO executeFirstHeadAction
+    OT_transitions += [(state("executeFirstHeadAction", org_state=org_state, tlet1=tlet1, dir1=dir1), let1, org_state, let1, S)
+                    for tlet1 in alphabet
+                    for dir1 in DIRS
+                    for let1 in underlined_alphabet
+                    for org_state in (ACCEPT_STATE, REJECT_STATE)]
+    return OT_transitions           
 
 
 def underline(let, max_val):
@@ -121,14 +193,28 @@ def un_double_underline(let, max_val):
 
 
 def get_alphabet(TT_transitions):
-    alphabet = {range(10)}
-    for ((_, cur_let1, cur_let2), (_, out_let1, out_let2, _, _)) in TT_transitions.items():
-        alphabet |= {cur_let1, cur_let2, out_let1, out_let2}
+    alphabet = {*range(3)}
+    for ((_, cur_let1, cur_let2), TT_transition_results) in TT_transitions.items():
+        alphabet |= {cur_let1, cur_let2}
+        for (_, out_let1, out_let2, _, _) in TT_transition_results:
+            alphabet |= {out_let1, out_let2}
     return alphabet
 
 
-def state(name, let1, dir1, t_let1, let2, dir2, t_):
-    pass
+def get_states(TT_transitions):
+    states = {START_STATE, ACCEPT_STATE, REJECT_STATE}
+    for ((org_state, _, _), TT_transition_results) in TT_transitions.items():
+        states |= {org_state}
+        for (t_state, _, _, _, _) in TT_transition_results:
+            states |= {t_state}
+    return states
+
+
+def state(name, **kwards):
+    out = f"{name}"
+    for key, val in kwards.items():
+        out += f"|{key}:{val}"
+    return out
 
 
 if __name__ == "__main__":
@@ -137,7 +223,7 @@ if __name__ == "__main__":
         sys.exit()
 
     path_to_turing_machine = sys.argv[1]
-    two_tape_transitions = read_two_tape_transitions(path_to_turing_machine)
-    one_tape_transitions = translate_transitions_to_one_tape(two_tape_transitions)
-    for transition in one_tape_transitions:
-        print(transition)
+    TT_transitions = read_two_tape_transitions(path_to_turing_machine)
+    OT_transitions = translate_transitions_to_one_tape(TT_transitions)
+    for (state, let, t_state, t_let, direction) in OT_transitions:
+        print(f"{state} {let} {t_state} {t_let} {direction}")
