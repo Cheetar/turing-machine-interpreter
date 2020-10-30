@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 
 import sys
-import copy
 
 BLANK = 0
 ACCEPT_STATE = "accept"
 REJECT_STATE = "reject"
+START_STATE = "start"
 
 
 class TuringMachine(object):
@@ -66,10 +66,13 @@ class TuringMachine(object):
 
     def run(self, tape, max_steps):
         """ Runs the TM over given input word on tape. The run is limited to a
-            given number of steps.
+            given number of steps. The configurations are traversed using BFS.
+            If a given configuration have already appeared then there is a
+            cycle in transition graph. Configuration is a tuple:
+            (state, tape, head_pos).
 
             Args:
-                tape ([int]): Input word - initial tape values.
+                tape ((int)): Input word - initial tape values.
                 max_steps (int): Maximum steps allowed per run.
 
             Returns:
@@ -78,59 +81,84 @@ class TuringMachine(object):
 
         """
         head_pos = 0
-        state = "start"
-        if len(tape) == 0:
-            tape = [BLANK]
-        letter = tape[head_pos]
+        state = START_STATE
+        tape += (BLANK,)
+        steps = 1
 
-        for transition in self._transitions.get((state, letter), []):
-            if self._exists_accepting(state, tape, head_pos, transition, max_steps):
-                return True
+        current_configurations = [(state, tape, head_pos)]
+        next_configurations = set()
+        history = set()
+
+        while len(current_configurations) and steps <= max_steps:
+            while len(current_configurations):
+                conf = current_configurations.pop()
+                if conf not in history:
+                    history |= {conf}
+                    if self.is_conf_terminal(conf):
+                        return self.is_conf_accepting(conf)
+                    next_configurations |= self.get_next_configurations(conf)
+
+            current_configurations = next_configurations.copy()
+            next_configurations.clear()
+            steps += 1
         return False
 
-    def _exists_accepting(self, state, tape, head_pos, transition, max_steps):
-        """ Checks if there exists an accepting run at most max_steps steps
-            long from a given configuration after executing given transition.
+    @staticmethod
+    def is_conf_terminal(conf):
+        """Check if configuration is a terminal one.
 
-            Args:
-                state (str): Previous state.
-                tape ([int]): Previous tape.
-                head_pos (int): Previous head position.
-                transition((str, int, str)): Transition to execute.
-                steps (int): Maximum steps allowed from this configuration.
+        Args:
+            conf (configuration): Tuple (state, tape, head_pos)
 
-            Returns:
-                bool: True if there exists an accepting run from this
-                        configuration. False otherwise.
-
+        Returns:
+            Bool: True if configuration is in a terminal state
         """
-        if max_steps == 0:
-            return False
+        (state, _, _) = conf
+        return state in (ACCEPT_STATE, REJECT_STATE)
 
-        tape = copy.copy(tape)
+    @staticmethod
+    def is_conf_accepting(conf):
+        """Check if configuration is an accepting one.
 
-        (target_state, target_letter, direction) = transition
-        tape[head_pos] = target_letter
-        state = target_state
-        if state == ACCEPT_STATE:
-            return True
-        if state == REJECT_STATE:
-            return False
+        Args:
+            conf (configuration): Tuple (state, tape, head_pos)
 
-        if direction == "L" and head_pos > 0:
-            # Move head to the left if isn't at leftmost position
-            head_pos -= 1
-        elif direction == "R":
-            # Move head to the right. Extend the tape by a blank if neccessary.
-            head_pos += 1
-            if head_pos == len(tape):
-                tape.append(BLANK)
+        Returns:
+            Bool: True if configuration is in an accepting state
+        """
+        (state, _, _) = conf
+        return state == ACCEPT_STATE
 
+    def get_next_configurations(self, conf):
+        """Generates all reachable configurations from a given configuration
+           in one transition i.e. all neighbours in configuration graph.
+
+        Args:
+            conf (configuration): Tuple (state, tape, head_pos)
+
+        Returns:
+            set(configuration): Set of all reachable configurations in one
+                                transition
+        """
+        (state, tape, head_pos) = conf
         letter = tape[head_pos]
+        next_configurations = set()
         for transition in self._transitions.get((state, letter), []):
-            if self._exists_accepting(state, tape, head_pos, transition, max_steps - 1):
-                return True
-        return False
+            (target_state, target_letter, direction) = transition
+            new_head_pos = head_pos
+            new_state = target_state
+            new_tape = tape[:head_pos] + (target_letter,) + tape[(head_pos + 1):]
+
+            if direction == "L" and new_head_pos > 0:
+                # Move head to the left if isn't at leftmost position
+                new_head_pos -= 1
+            elif direction == "R":
+                # Move head to the right. Extend the tape by a blank if neccessary.
+                new_head_pos += 1
+                if new_head_pos == len(tape):
+                    new_tape = tape[:head_pos] + (target_letter,) + tape[(head_pos + 1):] + (BLANK,)
+            next_configurations |= {(new_state, new_tape, new_head_pos)}
+        return next_configurations
 
 
 if __name__ == "__main__":
@@ -143,7 +171,7 @@ if __name__ == "__main__":
     tm = TuringMachine(path_to_turing_machine)
 
     try:
-        tape = [int(x) for x in input("")]
+        tape = tuple(int(x) for x in input(""))
         if BLANK in tape:
             raise ValueError
     except ValueError:
