@@ -5,6 +5,9 @@ import sys
 BLANK = 0
 ACCEPT_STATE = "accept"
 REJECT_STATE = "reject"
+R = "R"
+L = "L"
+S = "S"
 
 
 def read_two_tape_transitions(path):
@@ -40,7 +43,7 @@ def read_two_tape_transitions(path):
     return transitions
 
 
-def translate_transitions_to_one_tape(two_tape_transitions):
+def translate_transitions_to_one_tape(TT_transitions):
     """Translates two tape Turing Machine to a single tape TM.
 
     Both tapes will be stored on the same tape in format:
@@ -63,7 +66,7 @@ def translate_transitions_to_one_tape(two_tape_transitions):
     7. Go to the point 3a. of the algorithm.
 
     Args:
-        two_tape_transitions ([two_tape_transition]): A two tape transition is
+        TT_transitions ([two_tape_transition]): A two tape transition is
             a tuple: <state> <let1> <let2> <target_state> <out_let1> <out_let2>
             <dir1> <dir2>
 
@@ -71,7 +74,62 @@ def translate_transitions_to_one_tape(two_tape_transitions):
         [transition]: List of single tape Turing Machine transitions.
     """
     # Step 1.
-    
+    alphabet = get_alphabet(TT_transitions)
+    max_val = max(alphabet) + 1  # Used for underlining
+    underlined_alphabet = set(max_val + let for let in alphabet)
+    double_underlined_alphabet = set(2*max_val + let for let in alphabet)
+    SEPARATOR = 4 * max_val  # Separating the first and the second tape
+    OT_transitions = []
+
+    ################################################ INITIALIZATION ################################################
+    OT_transitions.append(("start", let, "initializeFirstTape", underline(let, max_val), R) for let in alphabet)
+    OT_transitions.append(("initializeFirstTape", let, "initializeFirstTape", let, R) for let in alphabet if let != BLANK)
+    OT_transitions.append(("initializeFirstTape", BLANK, "initializeSecondTapeBlank", SEPARATOR, R))
+    OT_transitions.append(("initializeSecondTapeBlank", BLANK, "initializeSecondTapeSeparator", BLANK, R))
+    OT_transitions.append(("initializeSecondTapeSeparator", BLANK, "goBackToFirstHead", SEPARATOR, L))
+    OT_transitions.append(("goBackToFirstHeadOnSecondTape", let, "goBackToFirstHeadOnSecondTape", let, L) for let in alphabet | double_underlined_alphabet)
+    OT_transitions.append(("goBackToFirstHeadOnSecondTape", SEPARATOR, "goBackToFirstHeadOnFirstTape", SEPARATOR, L))
+    OT_transitions.append(("goBackToFirstHeadOnFirstTape", let, "goBackToFirstHeadOnFirstTape", let, L) for let in alphabet)
+    OT_transitions.append(("goBackToFirstHeadOnFirstTape", let, f"ReadLet2|let1:{un_underline(let)}", let, R) for let in underlined_alphabet)
+    ################################################ EXECUTE FIRST HEAD ACTION ################################################
+    OT_transitions.append((f"ReadLet2|let1:{let1}", let, f"ReadLet2|let1:{let1}", let, R) for let in alphabet | {SEPARATOR}
+                                                                                          for let1 in alphabet)
+    OT_transitions.append((f"ReadLet2|let1:{let1}", let2, f"executeSecondHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let2, S) for let1 in alphabet
+                                                                                                                                                   for let2 in double_underlined_alphabet)
+    OT_transitions.append((f"executeSecondHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let2, f"executeFirstHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", un_double_underline(let2), L) for let1 in alphabet
+                                                                                                                                                   for let2 in double_underlined_alphabet)
+    OT_transitions.append((f"executeSecondHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let, f"executeFirstHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let, L) for let1 in alphabet
+                                                                                                                                                                                                        for let2 in double_underlined_alphabet)
+    OT_transitions.append((f"executeFirstHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let1, f"executeFirstHeadAction|tlet1:{tlet1}|tlet2:{tlet2}|dir1:{dir1}|dir2:{dir2}", let, L) for let1 in alphabet
+                                                                                                                                                                                                        for let2 in double_underlined_alphabet)
+
+
+def underline(let, max_val):
+    return max_val + let
+
+
+def double_underline(let, max_val):
+    return 2 * max_val + let
+
+
+def un_underline(let, max_val):
+    return let - max_val
+
+
+def un_double_underline(let, max_val):
+    return let - 2 * max_val
+
+
+def get_alphabet(TT_transitions):
+    alphabet = {range(10)}
+    for ((_, cur_let1, cur_let2), (_, out_let1, out_let2, _, _)) in TT_transitions.items():
+        alphabet |= {cur_let1, cur_let2, out_let1, out_let2}
+    return alphabet
+
+
+def state(name, let1, dir1, t_let1, let2, dir2, t_):
+    pass
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
