@@ -137,7 +137,7 @@ def translate_transitions_to_one_tape(TT_transitions):
                           for let2 in double_underlined_alphabet
                           for dir1 in DIRS
                           for org_state in states]
-    OT_transitions += [(state("executeSecondHeadAction", org_state=org_state, tlet1=tlet1, tlet2=tlet2, dir1=dir1, dir2=L), let2, state("executeSecondHeadActionLeftCheckIfExceedsTape", org_state=org_state, tlet1=tlet1, dir1=dir1), un_double_underline(tlet2, max_val), L)
+    OT_transitions += [(state("executeSecondHeadAction", org_state=org_state, tlet1=tlet1, tlet2=tlet2, dir1=dir1, dir2=L), let2, state("executeSecondHeadActionLeftCheckIfExceedsTape", org_state=org_state, tlet1=tlet1, dir1=dir1), tlet2, L)
                         for tlet1 in alphabet
                         for tlet2 in alphabet
                         for let2 in double_underlined_alphabet
@@ -167,12 +167,58 @@ def translate_transitions_to_one_tape(TT_transitions):
                     for dir1 in DIRS
                     for let1 in underlined_alphabet
                     for org_state in states]
-    # TODO executeFirstHeadAction
-    OT_transitions += [(state("executeFirstHeadAction", org_state=org_state, tlet1=tlet1, dir1=dir1), let1, org_state, let1, S)
+    OT_transitions += [(state("executeFirstHeadAction", org_state=org_state, tlet1=tlet1, dir1=S), let1, state("checkIfTerminalState", org_state=org_state), underline(tlet1, max_val), S)
                     for tlet1 in alphabet
-                    for dir1 in DIRS
+                    for let1 in underlined_alphabet
+                    for org_state in states]
+    OT_transitions += [(state("executeFirstHeadAction", org_state=org_state, tlet1=tlet1, dir1=L), let1, state("executeFirstHeadActionLeftCheckIfExceedsTape", org_state=org_state, tlet1=tlet1), let1, L)
+                    for tlet1 in alphabet
+                    for let1 in underlined_alphabet
+                    for org_state in states]
+    OT_transitions += [(state("executeFirstHeadActionLeftCheckIfExceedsTape", org_state=org_state, tlet1=tlet1), let1, state("checkIfTerminalState", org_state=org_state), underline(tlet1, max_val), S)
+                    for tlet1 in alphabet
+                    for let1 in underlined_alphabet
+                    for org_state in states]
+    OT_transitions += [(state("executeFirstHeadActionLeftCheckIfExceedsTape", org_state=org_state, tlet1=tlet1), let, state("executeFirstHeadActionLeftCheckIfExceedsTapeTapeNotExceeded", org_state=org_state), underline(let, max_val), R)
+                    for tlet1 in alphabet
+                    for let in alphabet
+                    for org_state in states]
+    OT_transitions += [(state("executeFirstHeadActionLeftCheckIfExceedsTapeTapeNotExceeded", org_state=org_state), let1, state("checkIfTerminalState", org_state=org_state), un_underline(let1, max_val), L)
+                    for tlet1 in alphabet
+                    for let1 in underlined_alphabet
+                    for org_state in states]
+    OT_transitions += [(state("executeFirstHeadAction", org_state=org_state, tlet1=tlet1, dir1=R), let1, state("executeFirstHeadActionRightCheckIfExceedsTape", org_state=org_state), tlet1, R)
+                    for tlet1 in alphabet
+                    for let1 in underlined_alphabet
+                    for org_state in states]
+    OT_transitions += [(state("executeFirstHeadActionRightCheckIfExceedsTape", org_state=org_state), let, state("checkIfTerminalState", org_state=org_state), underline(let, max_val), S)
+                    for tlet1 in alphabet
+                    for let in alphabet
+                    for org_state in states]
+    OT_transitions += [(state("executeFirstHeadActionRightCheckIfExceedsTape", org_state=org_state), SEPARATOR, state("rewriteSecondTapeWriteSeparator", org_state=org_state), underline(BLANK, max_val), R)
+                    for org_state in states]
+    OT_transitions += [(state("rewriteSecondTapeWriteSeparator", org_state=org_state), let, state("rewriteSecondTape", org_state=org_state, last_letter=let), SEPARATOR, R)
+                       for let in alphabet | double_underlined_alphabet
+                       for org_state in states]
+    OT_transitions += [(state("rewriteSecondTape", org_state=org_state, last_letter=let), let2, state("rewriteSecondTape", org_state=org_state, last_letter=let2), let, R)
+                       for let in alphabet | double_underlined_alphabet
+                       for let2 in alphabet | double_underlined_alphabet | {SEPARATOR}
+                       for org_state in states]
+    OT_transitions += [(state("rewriteSecondTape", org_state=org_state, last_letter=SEPARATOR), BLANK, state("goToFirstHeadCheckTerminal", org_state=org_state), SEPARATOR, L)
+                       for org_state in states]
+    OT_transitions += [(state("goToFirstHeadCheckTerminal", org_state=org_state), let, state("goToFirstHeadCheckTerminal", org_state=org_state), let, L)
+                       for let in alphabet | double_underlined_alphabet | {SEPARATOR}
+                       for org_state in states]
+    OT_transitions += [(state("goToFirstHeadCheckTerminal", org_state=org_state), let, state("checkIfTerminalState", org_state=org_state), let, S)
+                       for let in underlined_alphabet
+                       for org_state in states]
+    # Check if terminal state
+    OT_transitions += [(state("checkIfTerminalState", org_state=org_state), let1, org_state, let1, S)
                     for let1 in underlined_alphabet
                     for org_state in (ACCEPT_STATE, REJECT_STATE)]
+    OT_transitions += [(state("checkIfTerminalState", org_state=org_state), let1, state("ReadLet2", org_state=org_state, let1=un_underline(let1, max_val)), let1, R)
+                          for let1 in underlined_alphabet
+                          for org_state in states - {ACCEPT_STATE, REJECT_STATE}]
     return OT_transitions           
 
 
