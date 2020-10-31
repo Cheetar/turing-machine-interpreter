@@ -1,0 +1,1 @@
+start 0 0 accept 0 0 L L
