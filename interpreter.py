@@ -43,10 +43,10 @@ class TuringMachine(object):
         self._read_turing_machine(path)
 
     def _read_turing_machine(self, path):
-        """ Reads a set of TM transitions from a *.tm file
+        """Reads a set of TM transitions from a *.tm file
 
-            Args:
-                path (str): Path to the *.tm file with transitions.
+        Args:
+            path (str): Path to the *.tm file with transitions.
 
         """
         for transition in open(path, "r").read().split("\n"):
@@ -65,19 +65,19 @@ class TuringMachine(object):
                 self._transitions[(cur_state, cur_letter)].append((target_state, target_letter, direction))
 
     def run(self, tape, max_steps):
-        """ Runs the TM over given input word on tape. The run is limited to a
-            given number of steps. The configurations are traversed using BFS.
-            If a given configuration have already appeared then there is a
-            cycle in transition graph. Configuration is a tuple:
-            (state, tape, head_pos).
+        """Runs the TM over given input word on tape. The run is limited to a
+           given number of steps. The configurations are traversed using BFS.
+           If a given configuration have already appeared then there is a
+           cycle in transition graph. Configuration is a tuple:
+           (state, tape, head_pos).
 
-            Args:
-                tape ((int)): Input word - initial tape values.
-                max_steps (int): Maximum steps allowed per run.
+        Args:
+            tape ((int,)): Input word - initial tape values.
+            max_steps (int): Maximum steps allowed per run.
 
-            Returns:
-                bool: True if TM accepts the input word. False if TM rejects
-                        the input word.
+        Returns:
+            bool: True if TM accepts the input word. False if TM rejects
+                    the input word.
 
         """
         head_pos = 0
@@ -95,8 +95,10 @@ class TuringMachine(object):
                 if conf not in history:
                     history |= {conf}
                     if self.is_conf_terminal(conf):
-                        return self.is_conf_accepting(conf)
-                    next_configurations |= self.get_next_configurations(conf)
+                        if self.is_conf_accepting(conf):
+                            return True
+                    else:
+                        next_configurations |= self.get_next_configurations(conf)
 
             current_configurations = next_configurations.copy()
             next_configurations.clear()
